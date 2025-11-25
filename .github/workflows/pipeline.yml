@@ -1,22 +1,22 @@
 name: DevOps Pipeline Java
 
-# Gatilho: Executa quando há um push na branch 'main'
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+
+# Permissões necessárias para o GitHub gravar o pacote no próprio registro
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Baixa o código do repositório
     - name: Checkout do código
       uses: actions/checkout@v4
 
-    # 2. Configura o Java 17
     - name: Configurar JDK 17
       uses: actions/setup-java@v4
       with:
@@ -24,10 +24,22 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
-    # 3. Roda os testes e compila o código (Validação de Código)
     - name: Compilar e Testar com Maven
       run: mvn clean verify
 
-    # 4. Verifica se o Dockerfile está funcional (Validação de Infraestrutura)
-    - name: Construir Imagem Docker
-      run: docker build . --file Dockerfile --tag meu-app-java:latest
+    # --- MUDANÇA AQUI: Login no GitHub Container Registry ---
+    - name: Login no GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # Build e Push para o GitHub (ghcr.io)
+    - name: Build e Push da Imagem
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        # Define o nome da imagem como ghcr.io/usuario/projeto:latest
+        tags: ghcr.io/${{ github.repository }}:latest
